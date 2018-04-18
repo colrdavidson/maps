@@ -107,10 +107,18 @@ int main(int argc, char *argv[]) {
                 pc = (pc >> 28 << 28) | (instr_idx - 1);
             } break;
             case 4: {
-                u32 off = (imm + 1) << 2;
+                u32 off = imm;
                 printf("beq r%u, r%u, 0x%x\n", reg_1, reg_2, off);
 
                 if (reg[reg_1] == reg[reg_2]) {
+                    pc = pc + off;
+                }
+            } break;
+            case 5: {
+                u32 off = imm;
+                printf("bne r%u, r%u, 0x%x\n", reg_1, reg_2, off);
+
+                if (reg[reg_1] != reg[reg_2]) {
                     pc = pc + off;
                 }
             } break;

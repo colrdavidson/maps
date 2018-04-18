@@ -1,4 +1,5 @@
-    j skip
+    lui a0 1
+    bne a0 zero skip
     nop
 
 quit:

@@ -25,7 +25,9 @@ typedef enum Op {
     Op_Ori,
     Op_Lui,
     Op_Jr,
-    Op_J
+    Op_J,
+    Op_Bne,
+    Op_Beq
 } Op;
 
 typedef enum Register {
@@ -103,7 +105,7 @@ void map_grow(Map *map) {
 }
 
 void map_insert(Map *map, char *key, void *data) {
-    if (map->size >= map->capacity) {
+    if (map->size >= (map->capacity / 2)) {
         map_grow(map);
     }
 
@@ -211,8 +213,20 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm) {
             *expected_reg = 2;
             *expected_imm = 1;
         } break;
+        case Op_Beq: {
+            *expected_reg = 2;
+            *expected_imm = 1;
+        } break;
+        case Op_Bne: {
+            *expected_reg = 2;
+            *expected_imm = 1;
+        } break;
         case Op_Sll: {
             *expected_reg = 2;
+            *expected_imm = 1;
+        } break;
+        case Op_Lui: {
+            *expected_reg = 1;
             *expected_imm = 1;
         } break;
         case Op_Syscall: {
@@ -259,6 +273,8 @@ int main(int argc, char *argv[]) {
     map_insert(op_map, "j", (void *)Op_J);
     map_insert(op_map, "sll", (void *)Op_Sll);
     map_insert(op_map, "nop", (void *)Op_Nop);
+    map_insert(op_map, "bne", (void *)Op_Bne);
+    map_insert(op_map, "beq", (void *)Op_Beq);
 
     Map *reg_map = map_init();
     map_insert(reg_map, "zero", (void *)Reg_zero);
@@ -433,6 +449,7 @@ int main(int argc, char *argv[]) {
 
             Symbol *lab_s = (Symbol *)label.data;
             insts.arr[sym_s->inst_no].instr_idx = lab_s->inst_no;
+            insts.arr[sym_s->inst_no].imm = lab_s->inst_no;
             debug("Found symbol: %s, line: %llu, inst: %llu\n", symbol_map->m[i].key, sym_s->line_no, sym_s->inst_no);
         }
     }
@@ -447,6 +464,12 @@ int main(int argc, char *argv[]) {
             } break;
             case Op_Sll: {
                 inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6;
+            } break;
+            case Op_Beq: {
+                inst_bytes = 0x4 << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (inst.imm - 2);
+            } break;
+            case Op_Bne: {
+                inst_bytes = 0x5 << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (inst.imm - 2);
             } break;
             case Op_Syscall: {
                 inst_bytes = 0xc;
