@@ -54,7 +54,7 @@ Map *map_init() {
     Map *map = (Map *)malloc(sizeof(Map));
     map->size = 0;
     map->capacity = 20;
-    map->m = (Bucket *)calloc(sizeof(Bucket), map->capacity);
+    map->m = (Bucket *)calloc(map->capacity, sizeof(Bucket));
 
     return map;
 }
@@ -69,17 +69,44 @@ u32 map_hash(const char *key) {
 }
 
 void map_print(Map *map) {
+    printf("map->m: %p, map->size: %d, map->capacity: %d\n", map->m, map->size, map->capacity);
     for (u32 i = 0; i < map->capacity; i++) {
         Bucket b = map->m[i];
-        if (b.key == NULL) {
-            printf("empty\n");
-        } else {
-            printf("key: %s\n", b.key);
+        if (b.key != NULL) {
+            printf("[%d] key: %s\n", i, b.key);
         }
     }
 }
 
+void map_insert(Map *map, char *key, void *data);
+
+void map_grow(Map *map) {
+    Bucket *new_buckets = calloc(map->capacity * 2, sizeof(Bucket));
+
+    Map tmp_map;
+    tmp_map.m = new_buckets;
+    tmp_map.capacity = map->capacity * 2;
+    tmp_map.size = 0;
+
+    for (u32 i = 0; i < map->capacity; i++) {
+        Bucket b = map->m[i];
+        if (b.key != NULL) {
+            map_insert(&tmp_map, b.key, b.data);
+        }
+    }
+
+    free(map->m);
+
+    map->m = new_buckets;
+    map->capacity = tmp_map.capacity;
+    map->size = tmp_map.size;
+}
+
 void map_insert(Map *map, char *key, void *data) {
+    if (map->size >= map->capacity) {
+        map_grow(map);
+    }
+
     u32 hash = map_hash(key) % map->capacity;
 
     for (u32 i = 0; i < map->capacity; i++) {
@@ -235,10 +262,37 @@ int main(int argc, char *argv[]) {
 
     Map *reg_map = map_init();
     map_insert(reg_map, "zero", (void *)Reg_zero);
+    map_insert(reg_map, "at", (void *)Reg_at);
+    map_insert(reg_map, "v0", (void *)Reg_v0);
+    map_insert(reg_map, "v1", (void *)Reg_v1);
     map_insert(reg_map, "a0", (void *)Reg_a0);
     map_insert(reg_map, "a1", (void *)Reg_a1);
     map_insert(reg_map, "a2", (void *)Reg_a2);
-    map_insert(reg_map, "v0", (void *)Reg_v0);
+    map_insert(reg_map, "a3", (void *)Reg_a3);
+    map_insert(reg_map, "t0", (void *)Reg_t0);
+    map_insert(reg_map, "t1", (void *)Reg_t1);
+    map_insert(reg_map, "t2", (void *)Reg_t2);
+    map_insert(reg_map, "t3", (void *)Reg_t3);
+    map_insert(reg_map, "t4", (void *)Reg_t4);
+    map_insert(reg_map, "t5", (void *)Reg_t5);
+    map_insert(reg_map, "t6", (void *)Reg_t6);
+    map_insert(reg_map, "t7", (void *)Reg_t7);
+    map_insert(reg_map, "s0", (void *)Reg_s0);
+    map_insert(reg_map, "s1", (void *)Reg_s1);
+    map_insert(reg_map, "s2", (void *)Reg_s2);
+    map_insert(reg_map, "s3", (void *)Reg_s3);
+    map_insert(reg_map, "s4", (void *)Reg_s4);
+    map_insert(reg_map, "s5", (void *)Reg_s5);
+    map_insert(reg_map, "s6", (void *)Reg_s6);
+    map_insert(reg_map, "s7", (void *)Reg_s7);
+    map_insert(reg_map, "t8", (void *)Reg_t8);
+    map_insert(reg_map, "t9", (void *)Reg_t9);
+    map_insert(reg_map, "k0", (void *)Reg_k0);
+    map_insert(reg_map, "k1", (void *)Reg_k1);
+    map_insert(reg_map, "gp", (void *)Reg_gp);
+    map_insert(reg_map, "sp", (void *)Reg_sp);
+    map_insert(reg_map, "fp", (void *)Reg_fp);
+    map_insert(reg_map, "ra", (void *)Reg_ra);
 
     Map *label_map = map_init();
     Map *symbol_map = map_init();
@@ -278,7 +332,7 @@ int main(int argc, char *argv[]) {
         get_token(&ptr, &tok);
 
         if (tok.str[tok.size - 1] == ':') {
-            char *label = (char *)calloc(sizeof(char), tok.size - 1);
+            char *label = (char *)calloc(tok.size - 1, sizeof(char));
             memcpy(label, tok.str, tok.size - 1);
 
             Symbol *s = (Symbol *)malloc(sizeof(Symbol));
@@ -344,7 +398,7 @@ int main(int argc, char *argv[]) {
             if (errno != 0 && result == 0) {
                 debug("%s: Symbol(%s)\n", tok.str, tok.str);
 
-                inst.symbol_str = (char *)calloc(sizeof(char), tok.size);
+                inst.symbol_str = (char *)calloc(tok.size, sizeof(char));
                 strcpy(inst.symbol_str, tok.str);
 
                 Symbol *s = (Symbol *)malloc(sizeof(Symbol));
