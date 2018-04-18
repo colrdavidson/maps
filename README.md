@@ -2,6 +2,7 @@
 This is a very limited mips assembler and emulator  
 It supports comments, labels, hex and decimal immediates, and a tiny subset of mips instructions  
 It does not currently support embedding static data with the program, only immediates  
+The emulator doesn't currently emulate branch delay slots  
 Definitely still WIP, but making progress  
 
 ## Instruction Syntax
