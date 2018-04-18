@@ -11,6 +11,11 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef int8_t   i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 #define arrsize(x) sizeof(x) / sizeof(x[0])
 
 void print_reg(u32 *reg) {
@@ -107,19 +112,19 @@ int main(int argc, char *argv[]) {
                 pc = (pc >> 28 << 28) | (instr_idx - 1);
             } break;
             case 4: {
-                u32 off = imm;
+                i16 off = imm;
                 printf("beq r%u, r%u, 0x%x\n", reg_1, reg_2, off);
 
                 if (reg[reg_1] == reg[reg_2]) {
-                    pc = pc + off;
+                    pc = (i16)pc + off;
                 }
             } break;
             case 5: {
-                u32 off = imm;
+                i16 off = imm;
                 printf("bne r%u, r%u, 0x%x\n", reg_1, reg_2, off);
 
                 if (reg[reg_1] != reg[reg_2]) {
-                    pc = pc + off;
+                    pc = (i16)pc + off;
                 }
             } break;
             case 8: {

@@ -449,7 +449,7 @@ int main(int argc, char *argv[]) {
 
             Symbol *lab_s = (Symbol *)label.data;
             insts.arr[sym_s->inst_no].instr_idx = lab_s->inst_no;
-            insts.arr[sym_s->inst_no].imm = lab_s->inst_no;
+            insts.arr[sym_s->inst_no].imm = lab_s->inst_no - sym_s->inst_no + 1;
             debug("Found symbol: %s, line: %llu, inst: %llu\n", symbol_map->m[i].key, sym_s->line_no, sym_s->inst_no);
         }
     }

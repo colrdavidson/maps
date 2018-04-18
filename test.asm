@@ -1,3 +1,4 @@
+start:
     lui a0 1
     bne a0 zero skip
     nop
@@ -8,5 +9,6 @@ quit:
     syscall
 
 skip:
-    j quit
+    lui a1 1
+    beq a0 a1 quit
     nop
