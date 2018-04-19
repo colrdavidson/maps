@@ -22,7 +22,7 @@ or this:
 -- input: test.bin  
 
 ## Testing the Emulator and Assembler
-If all is working well, the emulator should leave an exit error code of 10  
+If all is working well, the emulator should leave an exit code of 10  
 ```
 ./asm test.asm test.bin
 ./emu test.bin
