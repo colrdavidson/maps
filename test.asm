@@ -4,7 +4,7 @@ start:
     nop
 
 quit:
-    addiu a0 zero 0
+    addiu a0 zero 10
     addiu v0 zero 0x4001
     syscall
 
