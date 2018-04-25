@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "file.h"
 
@@ -187,18 +188,25 @@ void iarr_push(InstArr *i, Inst inst) {
     i->size++;
 }
 
-void eat_space(char **ptr) {
-    while (**ptr == ' ') {
-        *ptr += 1;
+char *eat(char *str, int (*ptr)(int), int ret, u64 *line_no) {
+    while (*str != '\0' && ptr(*str) == ret) {
+        if (*str == '\n') {
+            *line_no = *line_no + 1;
+        }
+        str++;
     }
+
+    return str;
 }
 
-void get_token(char **ext_ptr, Token *tok) {
+int is_edible(int val) {
+    return isspace(val) || val == ';';
+}
+
+void get_token(char **ext_ptr, Token *tok, u64 *line_no) {
     char *ptr = *ext_ptr;
     char *start = ptr;
-    while (*ptr != ' ' && *ptr != '\0' && *ptr != '\n') {
-        ptr++;
-    }
+    ptr = eat(ptr, is_edible, 0, line_no);
 
     tok->size = (u32)(ptr - start);
     memcpy(tok->str, start, tok->size);
@@ -328,16 +336,15 @@ int main(int argc, char *argv[]) {
         memset(&inst, 0, sizeof(Inst));
         inst.op = -1;
 
-        while (*ptr == ' ' || *ptr == '\n') {
-            eat_space(&ptr);
-            if (*ptr == '\n') {
-                line_no++;
-                ptr++;
-            }
+        ptr = eat(ptr, isspace, 1, &line_no);
+
+        if (ptr >= end_ptr) {
+            debug("Fell off the end, line: %llu\n", line_no);
+            continue;
         }
 
         if (*ptr == ';') {
-            while (ptr < end_ptr && *ptr != '\n' && *ptr != '\0') {
+            while (*ptr != '\n' && *ptr != '\0' && ptr < end_ptr) {
                 ptr++;
             }
             debug("Skipped comment on line: %llu!\n", line_no);
@@ -345,7 +352,7 @@ int main(int argc, char *argv[]) {
         }
 
         bzero(tok.str, tok.size);
-        get_token(&ptr, &tok);
+        get_token(&ptr, &tok, &line_no);
 
         if (tok.str[tok.size - 1] == ':') {
             char *label = (char *)calloc(tok.size - 1, sizeof(char));
@@ -378,10 +385,10 @@ int main(int argc, char *argv[]) {
         expected_args(inst.op, &expected_reg, &expected_imm);
 
         for (u32 i = 0; i < expected_reg; i++) {
-            eat_space(&ptr);
+            ptr = eat(ptr, isspace, 1, &line_no);
 
             bzero(tok.str, tok.size);
-            get_token(&ptr, &tok);
+            get_token(&ptr, &tok, &line_no);
 
             Bucket reg_bucket = map_get(reg_map, tok.str);
             if (reg_bucket.key != NULL) {
@@ -396,10 +403,10 @@ int main(int argc, char *argv[]) {
         }
 
         for (u32 i = 0; i < expected_imm; i++) {
-            eat_space(&ptr);
+            ptr = eat(ptr, isspace, 1, &line_no);
 
             bzero(tok.str, tok.size);
-            get_token(&ptr, &tok);
+            get_token(&ptr, &tok, &line_no);
 
             int base = 10;
             char *strtol_start = tok.str;
