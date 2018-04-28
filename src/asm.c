@@ -442,10 +442,6 @@ int main(int argc, char *argv[]) {
         }
 
         iarr_push(&insts, inst);
-        if (*ptr == '\n') {
-            line_no++;
-        }
-        ptr++;
     }
 
     for (u32 i = 0; i < symbol_map->capacity; i++) {
