@@ -16,7 +16,7 @@ Data definition:
 ```data: db 0```
 
 Loading data:
-```lb a0 [data]```
+```lb a0 [a1]```
 
 ## Assembler Invocation
 ```./asm test.asm test.bin```  
