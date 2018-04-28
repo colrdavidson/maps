@@ -5,18 +5,7 @@
 #include <string.h>
 
 #include "file.h"
-
-typedef uint8_t   u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int8_t   i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-
-#define arrsize(x) sizeof(x) / sizeof(x[0])
+#include "common.h"
 
 void print_reg(u32 *reg) {
     for (u32 i = 0; i < 32; i++) {
@@ -62,7 +51,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    u32 *ops = (u32 *)bin_file.string;
+    u8 *binary = (u8 *)bin_file.string;
+    u32 *ops = (u32 *)binary;
     u32 num_ops = bin_file.size / 4;
 
     u32 reg[32] = {0};
@@ -113,7 +103,7 @@ int main(int argc, char *argv[]) {
             } break;
             case 4: {
                 i16 off = imm;
-                printf("beq r%u, r%u, 0x%x\n", reg_1, reg_2, off);
+                printf("beq r%u, r%u, 0x%x\n", reg_1, reg_2, (u16)off);
 
                 if (reg[reg_1] == reg[reg_2]) {
                     pc = (i16)pc + off;
@@ -147,6 +137,13 @@ int main(int argc, char *argv[]) {
                 printf("lui r%u, 0x%x\n", reg_2, imm);
 
                 reg[reg_2] = load_val;
+            } break;
+            case 0x20: {
+                printf("lb r%u, [r%u + 0]\n", reg_2, reg_1);
+
+                u32 idx = reg[reg_1];
+                u8 loaded_byte = binary[idx];
+                reg[reg_2] = loaded_byte;
             } break;
             default: {
                 printf("Instruction %x not handled!\n", op);
