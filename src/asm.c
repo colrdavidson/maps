@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
             errno = 0;
             u32 result = strtol(strtol_start, &endptr, base);
             if (errno != 0 && result == 0) {
-                debug("Invalid data found on line: %u\n", line_no + 1);
+                printf("Invalid data found on line: %u\n", line_no + 1);
                 return 1;
             } else {
                 debug("%s: Data(%u)\n", tok.str, result);
@@ -442,7 +442,9 @@ int main(int argc, char *argv[]) {
         }
 
         iarr_push(&insts, inst);
-        line_no++;
+        if (*ptr == '\n') {
+            line_no++;
+        }
         ptr++;
     }
 
