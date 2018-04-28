@@ -12,6 +12,12 @@ A common instruction, addiu, looks like this:
 or this:  
 ```addiu v0 zero 0x4000```  
 
+Data definition:
+```data: db 0```
+
+Loading data:
+```lb a0 [data]```
+
 ## Assembler Invocation
 ```./asm test.asm test.bin```  
 -- input: test.asm  
@@ -22,7 +28,7 @@ or this:
 -- input: test.bin  
 
 ## Testing the Emulator and Assembler
-If all is working well, the emulator should leave an exit code of 10  
+If all is working well, the emulator should leave an exit code of 49  
 ```
 ./asm test.asm test.bin
 ./emu test.bin
