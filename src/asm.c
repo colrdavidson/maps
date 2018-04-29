@@ -15,9 +15,10 @@ typedef enum Op {
     Op_Ori, Op_Lui,
     Op_Jr, Op_J,
     Op_Bne, Op_Beq,
-    Op_Lb, Op_Db,
-    Op_Dw, Op_Dd,
-    Op_Dq
+    Op_Lb, Op_Sb,
+    Op_Lw, Op_Sw,
+    Op_Db, Op_Dh,
+    Op_Dw
 } Op;
 
 typedef enum Register {
@@ -32,8 +33,7 @@ typedef enum Register {
 } Register;
 
 typedef enum Key {
-    Key_Db, Key_Dw,
-    Key_Dd, Key_Dq
+    Key_Db, Key_Dh, Key_Dw
 } Key;
 
 typedef struct Inst {
@@ -151,6 +151,21 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
             *expected_imm = 0;
             *expected_addr = 1;
         } break;
+        case Op_Sb: {
+            *expected_reg = 1;
+            *expected_imm = 0;
+            *expected_addr = 1;
+        } break;
+        case Op_Sw: {
+            *expected_reg = 1;
+            *expected_imm = 0;
+            *expected_addr = 1;
+        } break;
+        case Op_Lw: {
+            *expected_reg = 1;
+            *expected_imm = 0;
+            *expected_addr = 1;
+        } break;
         default: {
             printf("Unhandled op (Expected Args): %x\n", op);
         }
@@ -186,6 +201,9 @@ int main(int argc, char *argv[]) {
     map_insert(op_map, "bne", (void *)Op_Bne);
     map_insert(op_map, "beq", (void *)Op_Beq);
     map_insert(op_map, "lb", (void *)Op_Lb);
+    map_insert(op_map, "lw", (void *)Op_Lw);
+    map_insert(op_map, "sb", (void *)Op_Sb);
+    map_insert(op_map, "sw", (void *)Op_Sw);
 
     reg_map = map_init();
     map_insert(reg_map, "zero", (void *)Reg_zero);
@@ -223,9 +241,8 @@ int main(int argc, char *argv[]) {
 
     keyword_map = map_init();
     map_insert(keyword_map, "db", (void *)Key_Db);
+    map_insert(keyword_map, "dh", (void *)Key_Dh);
     map_insert(keyword_map, "dw", (void *)Key_Dw);
-    map_insert(keyword_map, "dd", (void *)Key_Dd);
-    map_insert(keyword_map, "dq", (void *)Key_Dq);
 
     label_map = map_init();
     symbol_map = map_init();
@@ -309,17 +326,13 @@ int main(int argc, char *argv[]) {
                         inst.op = Op_Db;
                         inst.width = 1;
                     } break;
-                    case Key_Dd: {
-                        inst.op = Op_Dd;
+                    case Key_Dh: {
+                        inst.op = Op_Dh;
                         inst.width = 2;
                     } break;
                     case Key_Dw: {
                         inst.op = Op_Dw;
                         inst.width = 4;
-                    } break;
-                    case Key_Dq: {
-                        inst.op = Op_Dq;
-                        inst.width = 8;
                     } break;
                 }
 
@@ -478,22 +491,15 @@ int main(int argc, char *argv[]) {
                 continue;
             } break;
             case Op_Dw: {
-                u16 inst_bytes = inst.imm;
+                u32 inst_bytes = inst.imm;
                 debug("data: 0x%04x\n", inst_bytes);
                 fwrite(&inst_bytes, sizeof(inst_bytes), 1, binary_file);
                 insert_idx += inst.width;
                 continue;
             } break;
-            case Op_Dd: {
-                u32 inst_bytes = inst.imm;
+            case Op_Dh: {
+                u16 inst_bytes = inst.imm;
                 debug("data: 0x%08x\n", inst_bytes);
-                fwrite(&inst_bytes, sizeof(inst_bytes), 1, binary_file);
-                insert_idx += inst.width;
-                continue;
-            } break;
-            case Op_Dq: {
-                u64 inst_bytes = inst.imm;
-                debug("data: 0x%016llx\n", inst_bytes);
                 fwrite(&inst_bytes, sizeof(inst_bytes), 1, binary_file);
                 insert_idx += inst.width;
                 continue;
@@ -535,6 +541,15 @@ int main(int argc, char *argv[]) {
             } break;
             case Op_Lb: {
                 inst_bytes = 0x20 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
+            } break;
+            case Op_Lw: {
+                inst_bytes = 0x23 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
+            } break;
+            case Op_Sb: {
+                inst_bytes = 0x28 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
+            } break;
+            case Op_Sw: {
+                inst_bytes = 0x2B << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
             } break;
             default: {
                 printf("Unhandled op (Bin Generator): %x\n", inst.op);

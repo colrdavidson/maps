@@ -51,8 +51,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    u8 *binary = (u8 *)bin_file.string;
-    u32 *ops = (u32 *)binary;
+    u8 *bin_8 = (u8 *)bin_file.string;
+    u16 *bin_16 = (u16 *)bin_file.string;
+    u32 *ops = (u32 *)bin_8;
     u32 num_ops = bin_file.size / 4;
 
     u32 reg[32] = {0};
@@ -139,11 +140,46 @@ int main(int argc, char *argv[]) {
                 reg[reg_2] = load_val;
             } break;
             case 0x20: {
-                printf("lb r%u, [r%u + 0]\n", reg_2, reg_1);
+                i16 off = imm;
+                printf("lb r%u, [r%u + %u]\n", reg_2, reg_1, off);
 
-                u32 idx = reg[reg_1];
-                u8 loaded_byte = binary[idx];
+                u32 idx = reg[reg_1] + off;
+                u8 loaded_byte = bin_8[idx];
                 reg[reg_2] = loaded_byte;
+            } break;
+            case 0x23: {
+                i16 off = imm;
+                printf("lw r%u, [r%u + %u]\n", reg_2, reg_1, off);
+
+                u32 idx = reg[reg_1] + off;
+                if ((idx % 4) != 0) {
+                    printf("Unaligned addressing error: %u\n", idx);
+                    return 1;
+                }
+
+                u32 word_idx = idx / 4;
+                u32 loaded_word = ops[word_idx];
+                reg[reg_2] = loaded_word;
+            } break;
+            case 0x28: {
+                i16 off = imm;
+                printf("sb r%u, [r%u + %u]\n", reg_2, reg_1, off);
+
+                u32 idx = reg[reg_1] + off;
+                bin_8[idx] = reg[reg_2];
+            } break;
+            case 0x2B: {
+                i16 off = imm;
+                printf("sw r%u, [r%u + %u]\n", reg_2, reg_1, off);
+
+                u32 idx = reg[reg_1] + off;
+                if ((idx % 4) != 0) {
+                    printf("Unaligned addressing error: %u\n", idx);
+                    return 1;
+                }
+
+                u32 word_idx = idx / 4;
+                ops[word_idx] = reg[reg_2];
             } break;
             default: {
                 printf("Instruction %x not handled!\n", op);
