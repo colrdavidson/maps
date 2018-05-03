@@ -16,6 +16,7 @@ typedef enum Op {
     Op_Sll, Op_Nop,
     Op_Ori, Op_Lui,
     Op_Jr, Op_J,
+    Op_Jal,
     Op_Bne, Op_Beq,
     Op_Lb, Op_Sb,
     Op_Lw, Op_Sw,
@@ -155,7 +156,7 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
         case Op_Syscall: { *expected_reg = *expected_imm = *expected_addr = 0; } break;
         case Op_Nop: {     *expected_reg = *expected_imm = *expected_addr = 0; } break;
         case Op_Mult: {  r2_args(expected_reg, expected_imm, expected_addr); } break;
-        case Op_Multu: {  r2_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Multu: { r2_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Add: {   r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addu: {  r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addi: {  r2_i_args(expected_reg, expected_imm, expected_addr); } break;
@@ -165,6 +166,7 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
         case Op_Sll: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Lui: {   i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_J: {     j_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Jal: {   j_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Lb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Sb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Sw: {    d_args(expected_reg, expected_imm, expected_addr); } break;
@@ -204,6 +206,7 @@ int main(int argc, char *argv[]) {
     map_insert(op_map, "lui", (void *)Op_Lui);
     map_insert(op_map, "jr", (void *)Op_Jr);
     map_insert(op_map, "j", (void *)Op_J);
+    map_insert(op_map, "jal", (void *)Op_Jal);
     map_insert(op_map, "sll", (void *)Op_Sll);
     map_insert(op_map, "nop", (void *)Op_Nop);
     map_insert(op_map, "bne", (void *)Op_Bne);
@@ -519,7 +522,8 @@ int main(int argc, char *argv[]) {
         switch (inst.op) {
             case Op_Syscall: { inst_bytes = 0xc; } break;
             case Op_Nop: {   inst_bytes = 0; } break;
-            case Op_J: {     inst_bytes = 0x2  << 26 | inst.instr_idx; } break;
+            case Op_J: {     inst_bytes = 0x2 << 26 | inst.instr_idx; } break;
+            case Op_Jal: {   inst_bytes = 0x3 << 26 | inst.instr_idx; } break;
             case Op_Jr: {    inst_bytes = inst.reg[0] << 21 | 0x8; } break;
             case Op_Mult: {  inst_bytes = inst.reg[0] << 21 | inst.reg[1] << 16 | 0x18; } break;
             case Op_Multu: { inst_bytes = inst.reg[0] << 21 | inst.reg[1] << 16 | 0x19; } break;
