@@ -10,7 +10,8 @@
 #include "file.h"
 
 typedef enum Op {
-    Op_Addiu, Op_Syscall,
+    Op_Add, Op_Addi,
+    Op_Addiu,
     Op_Sll, Op_Nop,
     Op_Ori, Op_Lui,
     Op_Jr, Op_J,
@@ -18,7 +19,7 @@ typedef enum Op {
     Op_Lb, Op_Sb,
     Op_Lw, Op_Sw,
     Op_Db, Op_Dh,
-    Op_Dw
+    Op_Dw, Op_Syscall
 } Op;
 
 typedef enum Register {
@@ -112,60 +113,48 @@ void get_token(char **ext_ptr, Token *tok) {
     *ext_ptr = ptr;
 }
 
+inline void r_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 3;
+    *expected_imm = 0;
+}
+
+inline void i_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 1;
+    *expected_imm = 1;
+}
+
+inline void r2_i_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 2;
+    *expected_imm = 1;
+}
+
+inline void j_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 0;
+    *expected_imm = 1;
+}
+
+inline void d_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 1;
+    *expected_imm = 0;
+    *expected_addr = 1;
+}
+
 void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     switch (op) {
-        case Op_Addiu: {
-            *expected_reg = 2;
-            *expected_imm = 1;
-        } break;
-        case Op_Beq: {
-            *expected_reg = 2;
-            *expected_imm = 1;
-        } break;
-        case Op_Bne: {
-            *expected_reg = 2;
-            *expected_imm = 1;
-        } break;
-        case Op_Sll: {
-            *expected_reg = 2;
-            *expected_imm = 1;
-        } break;
-        case Op_Lui: {
-            *expected_reg = 1;
-            *expected_imm = 1;
-        } break;
-        case Op_Syscall: {
-            *expected_reg = 0;
-            *expected_imm = 0;
-        } break;
-        case Op_J: {
-            *expected_reg = 0;
-            *expected_imm = 1;
-        } break;
-        case Op_Nop: {
-            *expected_reg = 0;
-            *expected_imm = 0;
-        } break;
-        case Op_Lb: {
-            *expected_reg = 1;
-            *expected_imm = 0;
-            *expected_addr = 1;
-        } break;
-        case Op_Sb: {
-            *expected_reg = 1;
-            *expected_imm = 0;
-            *expected_addr = 1;
-        } break;
-        case Op_Sw: {
-            *expected_reg = 1;
-            *expected_imm = 0;
-            *expected_addr = 1;
-        } break;
-        case Op_Lw: {
-            *expected_reg = 1;
-            *expected_imm = 0;
-            *expected_addr = 1;
-        } break;
+        case Op_Syscall: { *expected_reg = *expected_imm = *expected_addr = 0; } break;
+        case Op_Nop: {     *expected_reg = *expected_imm = *expected_addr = 0; } break;
+        case Op_Add: {   r_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Addi: {  r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Addiu: { r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Beq: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Bne: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Sll: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Lui: {   i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_J: {     j_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Lb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Sb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Sw: {    d_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Lw: {    d_args(expected_reg, expected_imm, expected_addr); } break;
         default: {
             printf("Unhandled op (Expected Args): %x\n", op);
         }
@@ -190,6 +179,8 @@ int main(int argc, char *argv[]) {
     FILE *binary_file = fopen(out_file, "w");
 
     op_map = map_init();
+    map_insert(op_map, "add", (void *)Op_Add);
+    map_insert(op_map, "addi", (void *)Op_Addi);
     map_insert(op_map, "addiu", (void *)Op_Addiu);
     map_insert(op_map, "syscall", (void *)Op_Syscall);
     map_insert(op_map, "ori", (void *)Op_Ori);
@@ -509,48 +500,22 @@ int main(int argc, char *argv[]) {
 
         u32 inst_bytes = 0;
         switch (inst.op) {
-            case Op_Nop: {
-                inst_bytes = 0;
-            } break;
-            case Op_Sll: {
-                inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6;
-            } break;
-            case Op_Beq: {
-                inst_bytes = 0x4 << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr;
-            } break;
-            case Op_Bne: {
-                inst_bytes = 0x5 << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr;
-            } break;
-            case Op_Syscall: {
-                inst_bytes = 0xc;
-            } break;
-            case Op_J: {
-                inst_bytes = 0x2 << 26 | inst.instr_idx;
-            } break;
-            case Op_Jr: {
-                inst_bytes = inst.reg[0] << 21 | 0x8;
-            } break;
-            case Op_Ori: {
-                inst_bytes = 0xD << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Lui: {
-                inst_bytes = 0xF << 26 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Addiu: {
-                inst_bytes = 0x9 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Lb: {
-                inst_bytes = 0x20 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Lw: {
-                inst_bytes = 0x23 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Sb: {
-                inst_bytes = 0x28 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
-            case Op_Sw: {
-                inst_bytes = 0x2B << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm;
-            } break;
+            case Op_Syscall: { inst_bytes = 0xc; } break;
+            case Op_Nop: {   inst_bytes = 0; } break;
+            case Op_Sll: {   inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6; } break;
+            case Op_Jr: {    inst_bytes = inst.reg[0] << 21 | 0x8; } break;
+            case Op_Add: {   inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x20; } break;
+            case Op_J: {     inst_bytes = 0x2  << 26 | inst.instr_idx; } break;
+            case Op_Beq: {   inst_bytes = 0x4  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
+            case Op_Bne: {   inst_bytes = 0x5  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
+            case Op_Ori: {   inst_bytes = 0xD  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Lui: {   inst_bytes = 0xF  << 26 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Addi: {  inst_bytes = 0x8  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Addiu: { inst_bytes = 0x9  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Lb: {    inst_bytes = 0x20 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Lw: {    inst_bytes = 0x23 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Sb: {    inst_bytes = 0x28 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Sw: {    inst_bytes = 0x2B << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
             default: {
                 printf("Unhandled op (Bin Generator): %x\n", inst.op);
                 return 1;
