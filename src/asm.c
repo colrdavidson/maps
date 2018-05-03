@@ -12,6 +12,7 @@
 typedef enum Op {
     Op_Add, Op_Addu,
     Op_Addi, Op_Addiu,
+    Op_Mult, Op_Multu,
     Op_Sll, Op_Nop,
     Op_Ori, Op_Lui,
     Op_Jr, Op_J,
@@ -116,21 +117,31 @@ void get_token(char **ext_ptr, Token *tok) {
 inline void r_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     *expected_reg = 3;
     *expected_imm = 0;
+    *expected_addr = 0;
 }
 
-inline void i_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
-    *expected_reg = 1;
-    *expected_imm = 1;
+inline void r2_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 2;
+    *expected_imm = 0;
+    *expected_addr = 0;
 }
 
 inline void r2_i_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     *expected_reg = 2;
     *expected_imm = 1;
+    *expected_addr = 0;
+}
+
+inline void i_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 1;
+    *expected_imm = 1;
+    *expected_addr = 0;
 }
 
 inline void j_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     *expected_reg = 0;
     *expected_imm = 1;
+    *expected_addr = 0;
 }
 
 inline void d_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
@@ -143,8 +154,10 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
     switch (op) {
         case Op_Syscall: { *expected_reg = *expected_imm = *expected_addr = 0; } break;
         case Op_Nop: {     *expected_reg = *expected_imm = *expected_addr = 0; } break;
+        case Op_Mult: {  r2_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Multu: {  r2_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Add: {   r_args(expected_reg, expected_imm, expected_addr); } break;
-        case Op_Addu: { r_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Addu: {  r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addi: {  r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addiu: { r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Beq: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
@@ -184,6 +197,8 @@ int main(int argc, char *argv[]) {
     map_insert(op_map, "addu", (void *)Op_Addu);
     map_insert(op_map, "addi", (void *)Op_Addi);
     map_insert(op_map, "addiu", (void *)Op_Addiu);
+    map_insert(op_map, "mult", (void *)Op_Mult);
+    map_insert(op_map, "multu", (void *)Op_Multu);
     map_insert(op_map, "syscall", (void *)Op_Syscall);
     map_insert(op_map, "ori", (void *)Op_Ori);
     map_insert(op_map, "lui", (void *)Op_Lui);
@@ -504,11 +519,13 @@ int main(int argc, char *argv[]) {
         switch (inst.op) {
             case Op_Syscall: { inst_bytes = 0xc; } break;
             case Op_Nop: {   inst_bytes = 0; } break;
-            case Op_Sll: {   inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6; } break;
+            case Op_J: {     inst_bytes = 0x2  << 26 | inst.instr_idx; } break;
             case Op_Jr: {    inst_bytes = inst.reg[0] << 21 | 0x8; } break;
+            case Op_Mult: {  inst_bytes = inst.reg[0] << 21 | inst.reg[1] << 16 | 0x18; } break;
+            case Op_Multu: { inst_bytes = inst.reg[0] << 21 | inst.reg[1] << 16 | 0x19; } break;
+            case Op_Sll: {   inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6; } break;
             case Op_Add: {   inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x20; } break;
             case Op_Addu: {  inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x21; } break;
-            case Op_J: {     inst_bytes = 0x2  << 26 | inst.instr_idx; } break;
             case Op_Lui: {   inst_bytes = 0xF  << 26 | inst.reg[0] << 16 | inst.imm; } break;
             case Op_Beq: {   inst_bytes = 0x4  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
             case Op_Bne: {   inst_bytes = 0x5  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
