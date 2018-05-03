@@ -5,6 +5,9 @@ start: ; 2
     bne a0 zero skip ; 4
     nop ; 5
 
+j quit
+nop
+
 quit:
     addiu t0 zero data
     addiu t1 zero data2
@@ -22,7 +25,7 @@ skip:
     beq a0 a1 quit
     nop
 
-data: db 101
+data: db 7
 data2: db 255
 data3: db 36
 data4: db 49

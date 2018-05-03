@@ -61,6 +61,7 @@ int main(int argc, char *argv[]) {
 
     for (; pc < num_ops; pc++) {
         u32 op = ops[pc];
+        debug("Reading %08x\n", op);
 
         u8 op_id = op >> 26;
         u8 reg_1 = op << 6 >> 27;
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
             } break;
             case 2: {
                 printf("j 0x%x\n", instr_idx);
-                pc = (pc >> 28 << 28) | (instr_idx - 1);
+                pc = (pc >> 28 << 28) | (instr_idx - 1) >> 2;
             } break;
             case 4: {
                 i16 off = imm;

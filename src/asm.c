@@ -367,7 +367,7 @@ int main(int argc, char *argv[]) {
 
             u32 rem = inst_off % 4;
             if (rem) {
-                inst_off += rem;
+                inst_off += 4 - rem;
             }
 
             inst.off = inst_off;
@@ -424,6 +424,12 @@ int main(int argc, char *argv[]) {
 
                 Symbol *s = (Symbol *)malloc(sizeof(Symbol));
                 s->line_no = line_no;
+
+                u32 rem = inst_off % 4;
+                if (rem) {
+                    inst_off += 4 - rem;
+                }
+
                 s->inst_off = inst_off;
 
                 map_insert(symbol_map, inst.symbol_str, (void *)s);
@@ -515,7 +521,9 @@ int main(int argc, char *argv[]) {
                 insert_idx += inst.width;
                 continue;
             } break;
-            default: {}
+            default: {
+                insert_idx += inst.width;
+            }
         }
 
         u32 inst_bytes = 0;
@@ -548,11 +556,11 @@ int main(int argc, char *argv[]) {
 
         u32 rem = insert_idx % 4;
         if (rem != 0) {
-            insert_idx += rem;
+            u8 pad_size = 4 - rem;
+            insert_idx += pad_size;
 
             u8 pad_byte = 0;
-            debug("injecting %d pad bytes\n", rem);
-            fwrite(&pad_byte, sizeof(pad_byte), rem, binary_file);
+            fwrite(&pad_byte, sizeof(pad_byte), pad_size, binary_file);
         }
 
         debug("0x%08x\n", inst_bytes);
