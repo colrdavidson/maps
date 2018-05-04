@@ -1,6 +1,6 @@
 # Mips32 Assembler and Emulator
 This is a very limited mips assembler and emulator  
-It supports comments, labels, hex and decimal immediates, and a tiny subset of mips instructions  
+It supports comments, labels, hex and decimal immediates, and a subset of mips instructions  
 The emulator doesn't currently emulate branch delay slots  
 Definitely still WIP, but making progress  
 
