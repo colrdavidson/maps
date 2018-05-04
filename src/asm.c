@@ -4,10 +4,13 @@
 #include <stdint.h>
 #include <errno.h>
 #include <ctype.h>
+#include <stdbool.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "map.h"
 #include "file.h"
+#include "elf.h"
 
 typedef enum Op {
     Op_Add, Op_Addu,
@@ -36,8 +39,18 @@ typedef enum Register {
 } Register;
 
 typedef enum Key {
-    Key_Db, Key_Dh, Key_Dw
+    Key_Db, Key_Dh, Key_Dw, Key_Section
 } Key;
+
+typedef enum SectionType {
+    Section_Text, Section_Data
+} SectionType;
+
+typedef struct Section {
+    SectionType type;
+    u32 start_idx;
+    u32 end_idx;
+} Section;
 
 typedef struct Inst {
     Op op;
@@ -100,6 +113,7 @@ char *eat(char *str, int (*ptr)(int), int ret) {
 Map *op_map;
 Map *reg_map;
 Map *keyword_map;
+Map *section_map;
 Map *label_map;
 Map *symbol_map;
 
@@ -178,13 +192,35 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Invalid number of arguments!\n");
+    if (argc < 3) {
+usage:
+        fprintf(stderr, "Usage: %s [-e] <in_file> <out_file>\n\t-e is for elf\n", argv[0]);
         return 1;
     }
 
-    char *in_file = argv[1];
-    char *out_file = argv[2];
+    bool use_elf = false;
+
+    int opt;
+    while ((opt = getopt(argc, argv, "eh")) != -1) {
+        switch (opt) {
+            case 'e': {
+                use_elf = true;
+            } break;
+            case 'h': {
+                goto usage;
+            } break;
+            default: {
+                goto usage;
+            }
+        }
+    }
+
+    char *in_file = argv[optind];
+    char *out_file = argv[optind + 1];
+
+    if (argv[optind + 2] != NULL) {
+        goto usage;
+    }
 
     File prog_file;
     if (read_file(in_file, &prog_file) == NULL) {
@@ -192,7 +228,7 @@ int main(int argc, char *argv[]) {
     }
 
     char *program = prog_file.string;
-    FILE *binary_file = fopen(out_file, "w");
+    FILE *binary_file = fopen(out_file, "wb");
 
     op_map = map_init();
     map_insert(op_map, "add", (void *)Op_Add);
@@ -254,6 +290,19 @@ int main(int argc, char *argv[]) {
     map_insert(keyword_map, "db", (void *)Key_Db);
     map_insert(keyword_map, "dh", (void *)Key_Dh);
     map_insert(keyword_map, "dw", (void *)Key_Dw);
+    map_insert(keyword_map, "section", (void *)Key_Section);
+
+    section_map = map_init();
+
+    Section *text_sect = (Section *)calloc(1, sizeof(Section));
+    text_sect->type = Section_Text;
+    map_insert(section_map, "text", (void *)text_sect);
+
+    Section *data_sect = (Section *)calloc(1, sizeof(Section));
+    data_sect->type = Section_Data;
+    map_insert(section_map, "data", (void *)data_sect);
+
+    Section *cur_section = NULL;
 
     label_map = map_init();
     symbol_map = map_init();
@@ -316,6 +365,26 @@ int main(int argc, char *argv[]) {
             bzero(tok.str, tok.size);
             get_token(&ptr, &tok);
 
+            if (key == Key_Section) {
+                Bucket section_bucket = map_get(section_map, tok.str);
+                if (section_bucket.key != NULL) {
+                    Section *section = (Section *)section_bucket.data;
+
+                    section->start_idx = insts.size;
+                    if (cur_section != NULL && cur_section->type != section->type) {
+                        cur_section->end_idx = insts.size;
+                    }
+
+                    cur_section = section;
+
+                    debug("%s: Section(%d)\n", tok.str, section->type);
+                    continue;
+                } else {
+                    printf("Invalid section %s\n", tok.str);
+                    return 1;
+                }
+            }
+
             int base = 10;
             char *strtol_start = tok.str;
             if (tok.str[0] == '0' && tok.str[1] == 'x') {
@@ -345,6 +414,7 @@ int main(int argc, char *argv[]) {
                         inst.op = Op_Dw;
                         inst.width = 4;
                     } break;
+                    default: {}
                 }
 
                 inst.imm = result;
@@ -474,6 +544,10 @@ int main(int argc, char *argv[]) {
         iarr_push(&insts, inst);
     }
 
+    if (cur_section != NULL) {
+        cur_section->end_idx = insts.size - 1;
+    }
+
     for (u32 i = 0; i < symbol_map->capacity; i++) {
         if (symbol_map->m[i].key != NULL) {
             Symbol *sym_s = (Symbol *)symbol_map->m[i].data;
@@ -495,6 +569,22 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    for (u32 i = 0; i < section_map->capacity; i++) {
+        Bucket b = section_map->m[i];
+        if (b.key != NULL) {
+            Section *section = (Section *)b.data;
+
+            u32 start_off = insts.arr[section->start_idx].off;
+            u32 end_off = insts.arr[section->end_idx].off;
+            u32 section_size = end_off - start_off;
+            debug("section %s: %u bytes\n", b.key, section_size);
+        }
+    }
+
+    Inst tmp_inst = insts.arr[insts.size - 1];
+    u32 binary_size = tmp_inst.off + tmp_inst.width;
+    u8 *binary = (u8 *)calloc(1, binary_size);
+
     u32 insert_idx = 0;
     for (u32 i = 0; i < insts.size; i++) {
         Inst inst = insts.arr[i];
@@ -503,27 +593,28 @@ int main(int argc, char *argv[]) {
             case Op_Db: {
                 u8 inst_byte = inst.imm;
                 debug("data: 0x%02x\n", inst_byte);
-                fwrite(&inst_byte, sizeof(inst_byte), 1, binary_file);
+
+                memcpy(binary + insert_idx, &inst_byte, sizeof(inst_byte));
                 insert_idx += inst.width;
                 continue;
             } break;
             case Op_Dw: {
                 u32 inst_bytes = inst.imm;
                 debug("data: 0x%04x\n", inst_bytes);
-                fwrite(&inst_bytes, sizeof(inst_bytes), 1, binary_file);
+
+                memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
                 insert_idx += inst.width;
                 continue;
             } break;
             case Op_Dh: {
                 u16 inst_bytes = inst.imm;
                 debug("data: 0x%08x\n", inst_bytes);
-                fwrite(&inst_bytes, sizeof(inst_bytes), 1, binary_file);
+
+                memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
                 insert_idx += inst.width;
                 continue;
             } break;
-            default: {
-                insert_idx += inst.width;
-            }
+            default: { }
         }
 
         u32 inst_bytes = 0;
@@ -560,13 +651,22 @@ int main(int argc, char *argv[]) {
             insert_idx += pad_size;
 
             u8 pad_byte = 0;
-            fwrite(&pad_byte, sizeof(pad_byte), pad_size, binary_file);
+            memset(binary + insert_idx, 0, pad_size);
         }
 
         debug("0x%08x\n", inst_bytes);
 
         // u32 endian_inst_bytes = htonl(inst_bytes);
         u32 endian_inst_bytes = inst_bytes;
-        fwrite(&endian_inst_bytes, sizeof(endian_inst_bytes), 1, binary_file);
+        memcpy(binary + insert_idx, &endian_inst_bytes, sizeof(endian_inst_bytes));
+        insert_idx += inst.width;
+    }
+
+    if (use_elf) {
+        debug("Writing elf file!\n");
+        write_elf_file(binary_file, binary, insert_idx);
+    } else {
+        debug("Writing bin file!\n");
+        fwrite(binary, 1, insert_idx, binary_file);
     }
 }

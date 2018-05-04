@@ -1,3 +1,4 @@
+section text
 ; 1
 
 start: ; 2
@@ -24,6 +25,8 @@ skip:
     lui a1 1
     beq a0 a1 quit
     nop
+
+section data
 
 data: db 7
 data2: db 255
