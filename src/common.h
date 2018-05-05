@@ -12,7 +12,7 @@ typedef int32_t i32;
 typedef int64_t i64;
 
 #ifdef DEBUG
-#define debug(fmt, ...) printf(fmt, __VA_ARGS__)
+#define debug(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
 #define debug(fmt, ...)
 #endif

@@ -100,7 +100,7 @@ void iarr_push(InstArr *i, Inst inst) {
 u32 line_no = 0;
 
 char *eat(char *str, int (*ptr)(int), int ret) {
-    while (*str != '\0' && ptr(*str) == ret) {
+    while (*str != '\0' && !!ptr(*str) == ret) {
         if (*str == '\n') {
             line_no++;
         }
@@ -367,6 +367,7 @@ usage:
 
             if (key == Key_Section) {
                 Bucket section_bucket = map_get(section_map, tok.str);
+
                 if (section_bucket.key != NULL) {
                     Section *section = (Section *)section_bucket.data;
 
@@ -392,10 +393,10 @@ usage:
                 strtol_start += 2;
             }
 
-            char *endptr;
+            char *endptr = NULL;
             errno = 0;
             u32 result = strtol(strtol_start, &endptr, base);
-            if (errno != 0 && result == 0) {
+            if (strtol_start == endptr || (errno != 0 && result == 0)) {
                 printf("Invalid data found on line: %u\n", line_no + 1);
                 return 1;
             } else {
@@ -483,10 +484,10 @@ usage:
                 strtol_start += 2;
             }
 
-            char *endptr;
+            char *endptr = NULL;
             errno = 0;
             u32 result = strtol(strtol_start, &endptr, base);
-            if (errno != 0 && result == 0) {
+            if (strtol_start == endptr || (errno != 0 && result == 0)) {
                 debug("%s: Symbol(%s)\n", tok.str, tok.str);
 
                 inst.symbol_str = (char *)calloc(tok.size, sizeof(char));

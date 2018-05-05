@@ -1,6 +1,7 @@
 #ifndef ELF_H
 #define ELF_H
 
+#include <arpa/inet.h>
 #include "common.h"
 
 typedef struct {
@@ -38,6 +39,7 @@ typedef struct {
 
 #define ELFCLASS32 1
 #define ELFDATA2LSB 1
+#define ELFDATA2MSB 2
 #define ELF_VERSION 1
 #define MIPS 0x8
 #define EXECUTABLE 2
@@ -50,24 +52,24 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
     Elf32_hdr elf_hdr = {0};
     elf_hdr.magic = 'F' << 24 | 'L' << 16 | 'E' << 8 | 0x7F;
     elf_hdr.bitness = ELFCLASS32;
-    elf_hdr.endian = ELFDATA2LSB;
+    elf_hdr.endian = ELFDATA2MSB;
     elf_hdr.version_1 = ELF_VERSION;
     elf_hdr.os_abi = 0;
 
-    elf_hdr.type = EXECUTABLE;
-    elf_hdr.machine = MIPS;
-    elf_hdr.version_2 = ELF_VERSION;
+    elf_hdr.type = htons(EXECUTABLE);
+    elf_hdr.machine = htons(MIPS);
+    elf_hdr.version_2 = htonl(ELF_VERSION);
 
-    elf_hdr.program_entry = sizeof(Elf32_hdr) + sizeof(Program_hdr);
+    elf_hdr.program_entry = htonl(sizeof(Elf32_hdr) + sizeof(Program_hdr));
 
-    elf_hdr.program_header_off = sizeof(Elf32_hdr);
+    elf_hdr.program_header_off = htonl(sizeof(Elf32_hdr));
     elf_hdr.section_header_off = 0;
 
     elf_hdr.flags = 0;
-    elf_hdr.eh_size = sizeof(Elf32_hdr);
+    elf_hdr.eh_size = htons(sizeof(Elf32_hdr));
 
-    elf_hdr.program_header_entry_size = sizeof(Program_hdr);
-    elf_hdr.num_program_header_entries = 1;
+    elf_hdr.program_header_entry_size = htons(sizeof(Program_hdr));
+    elf_hdr.num_program_header_entries = htons(1);
 
     elf_hdr.section_header_entry_size = 0;
     elf_hdr.num_section_header_entries = 0;
@@ -75,14 +77,14 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
     elf_hdr.section_header_names_idx = 0;
 
     Program_hdr prog_hdr = {0};
-    prog_hdr.type = PT_LOAD;
+    prog_hdr.type = htonl(PT_LOAD);
     prog_hdr.off = elf_hdr.program_entry;
     prog_hdr.vaddr = 0;
     prog_hdr.paddr = 0;
-    prog_hdr.file_size = file_size;
-    prog_hdr.mem_size = file_size;
-    prog_hdr.flags = 5;
-    prog_hdr.align = 0x1000;
+    prog_hdr.file_size = htonl(file_size);
+    prog_hdr.mem_size = htonl(file_size);
+    prog_hdr.flags = htonl(5);
+    prog_hdr.align = htonl(0x1000);
 
     memcpy(out_bin, &elf_hdr, sizeof(elf_hdr));
     memcpy(out_bin + sizeof(elf_hdr), &prog_hdr, sizeof(prog_hdr));

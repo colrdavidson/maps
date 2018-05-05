@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "file.h"
 #include "common.h"
+#include "file.h"
 
 void print_reg(u32 *reg) {
     for (u32 i = 0; i < 32; i++) {
@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
                 printf("lui r%u, 0x%x\n", reg_2, imm);
 
                 reg[reg_2] = load_val;
+
             } break;
             case 0x20: {
                 i16 off = imm;
