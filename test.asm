@@ -10,16 +10,11 @@ j quit
 nop
 
 quit:
-    addiu t0 zero data
-    addiu t1 zero data2
-    addiu t2 zero data3
-    addiu t3 zero data4
-    lb a0 [t0]
-    lb a0 [t1]
-    lb a0 [t2]
-    lb a0 [t3]
-    addiu v0 zero 0x4001
+    ori a0 zero 0 
+    ori v0 zero 0x4001 
     syscall ; 6
+    j quit
+    nop
 
 skip:
     lui a1 1

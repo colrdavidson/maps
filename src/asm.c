@@ -98,6 +98,12 @@ void iarr_push(InstArr *i, Inst inst) {
 }
 
 u32 line_no = 0;
+Map *op_map;
+Map *reg_map;
+Map *keyword_map;
+Map *section_map;
+Map *label_map;
+Map *symbol_map;
 
 char *eat(char *str, int (*ptr)(int), int ret) {
     while (*str != '\0' && !!ptr(*str) == ret) {
@@ -109,13 +115,6 @@ char *eat(char *str, int (*ptr)(int), int ret) {
 
     return str;
 }
-
-Map *op_map;
-Map *reg_map;
-Map *keyword_map;
-Map *section_map;
-Map *label_map;
-Map *symbol_map;
 
 void get_token(char **ext_ptr, Token *tok) {
     char *ptr = *ext_ptr;
@@ -175,6 +174,7 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
         case Op_Addu: {  r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addi: {  r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addiu: { r2_i_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Ori: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Beq: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Bne: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Sll: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
@@ -657,8 +657,8 @@ usage:
 
         debug("0x%08x\n", inst_bytes);
 
-        // u32 endian_inst_bytes = htonl(inst_bytes);
-        u32 endian_inst_bytes = inst_bytes;
+        u32 endian_inst_bytes = htonl(inst_bytes);
+        //u32 endian_inst_bytes = inst_bytes;
         memcpy(binary + insert_idx, &endian_inst_bytes, sizeof(endian_inst_bytes));
         insert_idx += inst.width;
     }
