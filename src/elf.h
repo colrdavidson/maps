@@ -57,9 +57,9 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
 
     u32 mem_location = 0x400000;
 
-    u32 program_entrypoint = sizeof(Elf32_hdr) + sizeof(Program_hdr) + mem_location + 1;
+    u32 program_entrypoint = sizeof(Elf32_hdr) + sizeof(Program_hdr) + mem_location;
 
-    u8 *out_bin = malloc(program_size);
+    u8 *out_bin = calloc(1, file_size);
     Elf32_hdr elf_hdr = {0};
     elf_hdr.magic = 'F' << 24 | 'L' << 16 | 'E' << 8 | 0x7F;
     elf_hdr.bitness = ELFCLASS32;
@@ -89,7 +89,7 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
 
     Program_hdr prog_hdr = {0};
     prog_hdr.type = htonl(PT_LOAD);
-    prog_hdr.off = 0;
+    prog_hdr.off = htonl(0);
     prog_hdr.vaddr = htonl(mem_location);
     prog_hdr.paddr = prog_hdr.vaddr;
     prog_hdr.file_size = htonl(file_size);
@@ -97,7 +97,7 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
     prog_hdr.flags = htonl(5);
     prog_hdr.align = htonl(0x1000);
 
-    printf("%x\n", program_entrypoint);
+
     memcpy(out_bin, &elf_hdr, sizeof(elf_hdr));
     memcpy(out_bin + sizeof(elf_hdr), &prog_hdr, sizeof(prog_hdr));
     memcpy(out_bin + sizeof(elf_hdr) + sizeof(prog_hdr), program, program_size);

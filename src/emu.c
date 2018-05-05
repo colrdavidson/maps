@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "common.h"
 #include "file.h"
@@ -60,13 +61,13 @@ int main(int argc, char *argv[]) {
     u32 pc = 0;
 
     for (; pc < num_ops; pc++) {
-        u32 op = ops[pc];
+        u32 op = htonl(ops[pc]);
         debug("Reading %08x\n", op);
 
         u8 op_id = op >> 26;
-        u8 reg_1 = op << 6 >> 27;
-        u8 reg_2 = op << 11 >> 27;
-        u8 reg_3 = op << 16 >> 27;
+        u8 reg_1 = op << 6 >> 26;
+        u8 reg_2 = op << 11 >> 26;
+        u8 reg_3 = op << 16 >> 26;
         u8 sa = op << 21 >> 27;
         u8 special_op_id = op << 26 >> 26;
         u8 instr_idx = op << 6 >> 6;
@@ -125,7 +126,7 @@ int main(int argc, char *argv[]) {
                 reg[reg_2] = reg[reg_1] + imm;
             } break;
             case 9: {
-                printf("addiu r%u, r%u, 0x%x\n", reg_1, reg_2, imm);
+                printf("addiu r%u, r%u, 0x%x\n", reg_2, reg_1, (i16)imm);
 
                 reg[reg_2] = reg[reg_1] + imm;
             } break;

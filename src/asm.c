@@ -106,7 +106,7 @@ Map *label_map;
 Map *symbol_map;
 
 char *eat(char *str, int (*ptr)(int), int ret) {
-    while (*str != '\0' && !!ptr(*str) == ret) {
+    while (*str != '\0' && !!ptr(*str) == !!ret) {
         if (*str == '\n') {
             line_no++;
         }
@@ -158,6 +158,12 @@ inline void j_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     *expected_addr = 0;
 }
 
+inline void jr_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
+    *expected_reg = 1;
+    *expected_imm = 0;
+    *expected_addr = 0;
+}
+
 inline void d_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
     *expected_reg = 1;
     *expected_imm = 0;
@@ -180,6 +186,7 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
         case Op_Sll: {   r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Lui: {   i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_J: {     j_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Jr: {    jr_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Jal: {   j_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Lb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Sb: {    d_args(expected_reg, expected_imm, expected_addr); } break;
@@ -466,7 +473,7 @@ usage:
 
                 inst.reg[i] = reg;
             } else {
-                printf("Not enough registers for op on line: %u\n", line_no + 1);
+                printf("[%u] Couldn't find register: %s\n", line_no + 1, tok.str);
                 return 1;
             }
         }
@@ -532,13 +539,13 @@ usage:
 
                 inst.reg[1] = reg;
             } else {
-                printf("Not enough registers for op on line: %u\n", line_no + 1);
+                printf("[%u] Not enough registers for op!\n", line_no + 1);
                 return 1;
             }
         }
 
         if ((u32)inst.op == -1) {
-            printf("Op fail on line: %u\n", line_no + 1);
+            printf("[%u] Op fail\n", line_no + 1);
             return 1;
         }
 
@@ -549,6 +556,7 @@ usage:
         cur_section->end_idx = insts.size - 1;
     }
 
+    u32 mem_start = 0x400000 + sizeof(Elf32_hdr) + sizeof(Program_hdr);
     for (u32 i = 0; i < symbol_map->capacity; i++) {
         if (symbol_map->m[i].key != NULL) {
             Symbol *sym_s = (Symbol *)symbol_map->m[i].data;
@@ -563,9 +571,9 @@ usage:
             u32 label_idx = (lab_s->inst_off >> 2) - 1;
             u32 symbol_idx = (sym_s->inst_off >> 2) - 1;
 
-            insts.arr[symbol_idx].instr_idx = lab_s->inst_off;
+            insts.arr[symbol_idx].instr_idx = (mem_start + lab_s->inst_off) >> 2;
             insts.arr[symbol_idx].rel_addr = (label_idx - symbol_idx);
-            insts.arr[symbol_idx].imm = lab_s->inst_off;
+            insts.arr[symbol_idx].imm = (mem_start + lab_s->inst_off) >> 2;
             debug("Found symbol: %s, line: %u, offset: %u\n", symbol_map->m[i].key, sym_s->line_no, sym_s->inst_off);
         }
     }

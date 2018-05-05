@@ -11,10 +11,8 @@ nop
 
 quit:
     ori a0 zero 0 
-    ori v0 zero 0x4001 
+    addiu v0 zero 4001 
     syscall ; 6
-    j quit
-    nop
 
 skip:
     lui a1 1
