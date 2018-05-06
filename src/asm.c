@@ -19,7 +19,7 @@ typedef enum Op {
     Op_Sll, Op_Nop,
     Op_Ori, Op_Lui,
     Op_Jr, Op_J,
-    Op_Jal,
+    Op_Jal, Op_Sub,
     Op_Bne, Op_Beq,
     Op_Lb, Op_Sb,
     Op_Lw, Op_Sw,
@@ -55,7 +55,7 @@ typedef struct Section {
 typedef struct Inst {
     Op op;
     Register reg[3];
-    u16 imm;
+    u32 imm;
     i16 rel_addr;
     u32 instr_idx;
     char *symbol_str;
@@ -114,6 +114,14 @@ char *eat(char *str, int (*ptr)(int), int ret) {
     }
 
     return str;
+}
+
+int has_quote(int c) {
+    if (c == '\'') {
+        return 0;
+    }
+
+    return 1;
 }
 
 void get_token(char **ext_ptr, Token *tok) {
@@ -177,6 +185,7 @@ void expected_args(Op op, u32 *expected_reg, u32 *expected_imm, u32 *expected_ad
         case Op_Mult: {  r2_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Multu: { r2_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Add: {   r_args(expected_reg, expected_imm, expected_addr); } break;
+        case Op_Sub: {   r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addu: {  r_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addi: {  r2_i_args(expected_reg, expected_imm, expected_addr); } break;
         case Op_Addiu: { r2_i_args(expected_reg, expected_imm, expected_addr); } break;
@@ -238,6 +247,7 @@ usage:
     FILE *binary_file = fopen(out_file, "wb");
 
     op_map = map_init();
+    map_insert(op_map, "sub", (void *)Op_Sub);
     map_insert(op_map, "add", (void *)Op_Add);
     map_insert(op_map, "addu", (void *)Op_Addu);
     map_insert(op_map, "addi", (void *)Op_Addi);
@@ -368,11 +378,10 @@ usage:
             debug("%s: Key(%u)\n", tok.str, key);
 
             ptr = eat(ptr, isspace, 1);
-
             bzero(tok.str, tok.size);
-            get_token(&ptr, &tok);
 
             if (key == Key_Section) {
+                get_token(&ptr, &tok);
                 Bucket section_bucket = map_get(section_map, tok.str);
 
                 if (section_bucket.key != NULL) {
@@ -393,42 +402,64 @@ usage:
                 }
             }
 
-            int base = 10;
-            char *strtol_start = tok.str;
-            if (tok.str[0] == '0' && tok.str[1] == 'x') {
-                base = 16;
-                strtol_start += 2;
-            }
+            u32 result;
+            if (ptr[0] == '\'') {
+                ptr += 1;
+                char *end_ptr = eat(ptr, has_quote, 1);
 
-            char *endptr = NULL;
-            errno = 0;
-            u32 result = strtol(strtol_start, &endptr, base);
-            if (strtol_start == endptr || (errno != 0 && result == 0)) {
-                printf("Invalid data found on line: %u\n", line_no + 1);
-                return 1;
-            } else {
-                debug("%s: Data(%u)\n", tok.str, result);
+                tok.size = (u32)(end_ptr - ptr);
+                memcpy(tok.str, ptr, tok.size);
+                tok.str[tok.size] = 0;
 
-                switch (key) {
-                    case Key_Db: {
-                        inst.op = Op_Db;
-                        inst.width = 1;
-                    } break;
-                    case Key_Dh: {
-                        inst.op = Op_Dh;
-                        inst.width = 2;
-                    } break;
-                    case Key_Dw: {
-                        inst.op = Op_Dw;
-                        inst.width = 4;
-                    } break;
-                    default: {}
+                // Currently only supporting single length chars
+                if (tok.size != 1) {
+                    printf("[%u] Invalid data %s\n", line_no + 1, tok.str);
+                    return 1;
                 }
 
-                inst.imm = result;
-                inst.off = inst_off;
-                inst_off += inst.width;
+                result = tok.str[0];
+                ptr = end_ptr + 1;
+
+            } else {
+                get_token(&ptr, &tok);
+                int base = 10;
+                char *strtol_start = tok.str;
+                if (tok.str[0] == '0' && tok.str[1] == 'x') {
+                    base = 16;
+                    strtol_start += 2;
+                }
+
+                char *endptr = NULL;
+                errno = 0;
+                result = strtol(strtol_start, &endptr, base);
+                if (strtol_start == endptr || (errno != 0 && result == 0)) {
+                    printf("[%u] Invalid data %s\n", line_no + 1, tok.str);
+                    return 1;
+                }
             }
+
+
+            debug("%s: Data(%u)\n", tok.str, result);
+
+            switch (key) {
+                case Key_Db: {
+                    inst.op = Op_Db;
+                    inst.width = 1;
+                } break;
+                case Key_Dh: {
+                    inst.op = Op_Dh;
+                    inst.width = 2;
+                } break;
+                case Key_Dw: {
+                    inst.op = Op_Dw;
+                    inst.width = 4;
+                } break;
+                default: {}
+            }
+
+            inst.imm = result;
+            inst.off = inst_off;
+            inst_off += inst.width;
 
             iarr_push(&insts, inst);
             continue;
@@ -571,10 +602,13 @@ usage:
             u32 label_idx = (lab_s->inst_off >> 2) - 1;
             u32 symbol_idx = (sym_s->inst_off >> 2) - 1;
 
-            insts.arr[symbol_idx].instr_idx = (mem_start + lab_s->inst_off) >> 2;
+            insts.arr[symbol_idx].instr_idx = (mem_start + lab_s->inst_off);
             insts.arr[symbol_idx].rel_addr = (label_idx - symbol_idx);
-            insts.arr[symbol_idx].imm = (mem_start + lab_s->inst_off) >> 2;
-            debug("Found symbol: %s, line: %u, offset: %u\n", symbol_map->m[i].key, sym_s->line_no, sym_s->inst_off);
+            insts.arr[symbol_idx].imm = (mem_start + lab_s->inst_off);
+            debug("Found symbol: %s, line: %u, offset: %u, idx: %x\n",
+                    symbol_map->m[i].key, sym_s->line_no,
+                    sym_s->inst_off, (insts.arr[symbol_idx].instr_idx)
+            );
         }
     }
 
@@ -638,16 +672,17 @@ usage:
             case Op_Sll: {   inst_bytes = inst.reg[0] << 16 | inst.reg[1] << 11 | inst.reg[2] << 6; } break;
             case Op_Add: {   inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x20; } break;
             case Op_Addu: {  inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x21; } break;
-            case Op_Lui: {   inst_bytes = 0xF  << 26 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Sub: {   inst_bytes = inst.reg[2] << 21 | inst.reg[1] << 16 | inst.reg[0] << 11 | 0x22; } break;
+            case Op_Lui: {   inst_bytes = 0xF  << 26 | inst.reg[0] << 16 | (u16)(inst.imm >> 16); } break;
             case Op_Beq: {   inst_bytes = 0x4  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
             case Op_Bne: {   inst_bytes = 0x5  << 26 | inst.reg[0] << 21 | inst.reg[1] << 16 | (u16)inst.rel_addr; } break;
-            case Op_Ori: {   inst_bytes = 0xD  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Addi: {  inst_bytes = 0x8  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Addiu: { inst_bytes = 0x9  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Lb: {    inst_bytes = 0x20 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Lw: {    inst_bytes = 0x23 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Sb: {    inst_bytes = 0x28 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
-            case Op_Sw: {    inst_bytes = 0x2B << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | inst.imm; } break;
+            case Op_Ori: {   inst_bytes = 0xD  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Addi: {  inst_bytes = 0x8  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Addiu: { inst_bytes = 0x9  << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Lb: {    inst_bytes = 0x20 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Lw: {    inst_bytes = 0x23 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Sb: {    inst_bytes = 0x28 << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
+            case Op_Sw: {    inst_bytes = 0x2B << 26 | inst.reg[1] << 21 | inst.reg[0] << 16 | (u16)inst.imm; } break;
             default: {
                 printf("Unhandled op (Bin Generator): %x\n", inst.op);
                 return 1;
