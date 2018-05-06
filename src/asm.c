@@ -23,8 +23,7 @@ typedef enum Op {
     Op_Bne, Op_Beq,
     Op_Lb, Op_Sb,
     Op_Lw, Op_Sw,
-    Op_Db, Op_Dh,
-    Op_Dw, Op_Syscall
+    Op_Data, Op_Syscall
 } Op;
 
 typedef enum Register {
@@ -61,6 +60,7 @@ typedef struct Inst {
     char *symbol_str;
     u8 width;
     u32 off;
+    u8 *arr;
 } Inst;
 
 typedef struct Token {
@@ -116,8 +116,16 @@ char *eat(char *str, int (*ptr)(int), int ret) {
     return str;
 }
 
-int has_quote(int c) {
+int has_squote(int c) {
     if (c == '\'') {
+        return 0;
+    }
+
+    return 1;
+}
+
+int has_dquote(int c) {
+    if (c == '\"') {
         return 0;
     }
 
@@ -402,16 +410,39 @@ usage:
                 }
             }
 
-            u32 result;
-            if (ptr[0] == '\'') {
+            if (ptr[0] == '\"') {
                 ptr += 1;
-                char *end_ptr = eat(ptr, has_quote, 1);
+                char *end_ptr = eat(ptr, has_dquote, 1);
 
                 tok.size = (u32)(end_ptr - ptr);
                 memcpy(tok.str, ptr, tok.size);
                 tok.str[tok.size] = 0;
 
-                // Currently only supporting single length chars
+                ptr = end_ptr + 1;
+
+                inst.op = Op_Data;
+                inst.width = tok.size;
+
+                u8 *inst_buf = calloc(1, tok.size);
+                memcpy(inst_buf, tok.str, tok.size);
+
+                inst.arr = inst_buf;
+                inst.off = inst_off;
+                inst_off += inst.width;
+
+                iarr_push(&insts, inst);
+                continue;
+            }
+
+            u32 result;
+            if (ptr[0] == '\'') {
+                ptr += 1;
+                char *end_ptr = eat(ptr, has_squote, 1);
+
+                tok.size = (u32)(end_ptr - ptr);
+                memcpy(tok.str, ptr, tok.size);
+                tok.str[tok.size] = 0;
+
                 if (tok.size != 1) {
                     printf("[%u] Invalid data %s\n", line_no + 1, tok.str);
                     return 1;
@@ -419,7 +450,6 @@ usage:
 
                 result = tok.str[0];
                 ptr = end_ptr + 1;
-
             } else {
                 get_token(&ptr, &tok);
                 int base = 10;
@@ -438,20 +468,19 @@ usage:
                 }
             }
 
-
             debug("%s: Data(%u)\n", tok.str, result);
 
             switch (key) {
                 case Key_Db: {
-                    inst.op = Op_Db;
+                    inst.op = Op_Data;
                     inst.width = 1;
                 } break;
                 case Key_Dh: {
-                    inst.op = Op_Dh;
+                    inst.op = Op_Data;
                     inst.width = 2;
                 } break;
                 case Key_Dw: {
-                    inst.op = Op_Dw;
+                    inst.op = Op_Data;
                     inst.width = 4;
                 } break;
                 default: {}
@@ -632,32 +661,32 @@ usage:
     for (u32 i = 0; i < insts.size; i++) {
         Inst inst = insts.arr[i];
 
-        switch (inst.op) {
-            case Op_Db: {
-                u8 inst_byte = inst.imm;
-                debug("data: 0x%02x\n", inst_byte);
+        if (inst.op == Op_Data) {
+            switch (inst.width) {
+                case 1: {
+                    u8 inst_byte = inst.imm;
+                    memcpy(binary + insert_idx, &inst_byte, sizeof(inst_byte));
+                    debug("data: 0x%02x\n", inst_byte);
+                } break;
+                case 2: {
+                    u16 inst_bytes = inst.imm;
+                    memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
+                    debug("data: 0x%04x\n", inst_bytes);
+                } break;
+                case 4: {
+                    u32 inst_bytes = inst.imm;
+                    memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
+                    debug("data: 0x%08x\n", inst_bytes);
+                } break;
+                default: {
+                    u8 *inst_bytes = inst.arr;
+                    memcpy(binary + insert_idx, inst_bytes, inst.width);
+                    debug("data: %u bytes written\n", inst.width);
+                }
+            }
 
-                memcpy(binary + insert_idx, &inst_byte, sizeof(inst_byte));
-                insert_idx += inst.width;
-                continue;
-            } break;
-            case Op_Dw: {
-                u32 inst_bytes = inst.imm;
-                debug("data: 0x%04x\n", inst_bytes);
-
-                memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
-                insert_idx += inst.width;
-                continue;
-            } break;
-            case Op_Dh: {
-                u16 inst_bytes = inst.imm;
-                debug("data: 0x%08x\n", inst_bytes);
-
-                memcpy(binary + insert_idx, &inst_bytes, sizeof(inst_bytes));
-                insert_idx += inst.width;
-                continue;
-            } break;
-            default: { }
+            insert_idx += inst.width;
+            continue;
         }
 
         u32 inst_bytes = 0;

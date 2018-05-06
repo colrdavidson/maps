@@ -17,18 +17,7 @@ main:
     syscall
 
 msg:
-    db 'H'
-    db 'e'
-    db 'l'
-    db 'l'
-    db 'o'
-    db ' '
-    db 'W'
-    db 'o'
-    db 'r'
-    db 'l'
-    db 'd'
-    db '!'
+    db "Hello World!"
     db 0xa
     db 0
 msg_end:
