@@ -641,19 +641,16 @@ usage:
                 }
             }
 
-            char *selected_tok_str;
-            Bucket reg_bucket;
             if (reg_tok.str != NULL) {
-                reg_bucket = map_get(reg_map, reg_tok.str);
-                selected_tok_str = reg_tok.str;
-            } else {
-                reg_bucket = map_get(reg_map, tok.str);
-                selected_tok_str = tok.str;
+                bzero(tok.str, tok.size);
+                tok.str = memcpy(tok.str, reg_tok.str, strlen(reg_tok.str));
+                free(reg_tok.str);
             }
 
+            Bucket reg_bucket = map_get(reg_map, tok.str);
             if (reg_bucket.key != NULL) {
                 Register reg = (Register)reg_bucket.data;
-                debug("%s: Register(%u)\n", selected_tok_str, reg);
+                debug("%s: Register(%u)\n", tok.str, reg);
 
                 inst.reg[1] = reg;
             } else {
@@ -669,6 +666,7 @@ usage:
                 }
 
                 debug("%s: Offset(%u)\n", off_tok.str, result);
+                free(off_tok.str);
 
                 inst.imm = result;
             }
