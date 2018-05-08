@@ -116,6 +116,14 @@ char *eat(char *str, int (*ptr)(int), int ret) {
     return str;
 }
 
+int has_close_bracket(int c) {
+    if (c == ']') {
+        return 0;
+    }
+
+    return 1;
+}
+
 int has_squote(int c) {
     if (c == '\'') {
         return 0;
@@ -132,6 +140,18 @@ int has_dquote(int c) {
     return 1;
 }
 
+char *strip_str(char *str) {
+    char *ptr = str;
+    char *start_ptr = eat(ptr, isspace, 1);
+    char *end_ptr = eat(start_ptr, isspace, 0);
+
+    u32 str_size = end_ptr - start_ptr;
+    char *stripped_str = calloc(1, str_size);
+    memcpy(stripped_str, start_ptr, str_size);
+
+    return stripped_str;
+}
+
 void get_token(char **ext_ptr, Token *tok) {
     char *ptr = *ext_ptr;
     char *start = ptr;
@@ -142,6 +162,26 @@ void get_token(char **ext_ptr, Token *tok) {
     tok->str[tok->size] = 0;
 
     *ext_ptr = ptr;
+}
+
+bool parse_number(char *token, u32 *num) {
+    int base = 10;
+    char *strtol_start = token;
+    if (token[0] == '0' && token[1] == 'x') {
+        base = 16;
+        strtol_start += 2;
+    }
+
+    char *endptr = NULL;
+    errno = 0;
+    u32 result = strtol(strtol_start, &endptr, base);
+    if (strtol_start == endptr || (errno != 0 && result == 0)) {
+        return false;
+    }
+
+    *num = result;
+
+    return true;
 }
 
 inline void r_args(u32 *expected_reg, u32 *expected_imm, u32 *expected_addr) {
@@ -251,9 +291,6 @@ usage:
         return 1;
     }
 
-    char *program = prog_file.string;
-    FILE *binary_file = fopen(out_file, "wb");
-
     op_map = map_init();
     map_insert(op_map, "sub", (void *)Op_Sub);
     map_insert(op_map, "add", (void *)Op_Add);
@@ -341,6 +378,7 @@ usage:
 
     u32 inst_off = 0;
 
+    char *program = prog_file.string;
     char *end_ptr = program + prog_file.size;
     char *ptr = program;
     while (ptr < end_ptr) {
@@ -452,17 +490,8 @@ usage:
                 ptr = end_ptr + 1;
             } else {
                 get_token(&ptr, &tok);
-                int base = 10;
-                char *strtol_start = tok.str;
-                if (tok.str[0] == '0' && tok.str[1] == 'x') {
-                    base = 16;
-                    strtol_start += 2;
-                }
 
-                char *endptr = NULL;
-                errno = 0;
-                result = strtol(strtol_start, &endptr, base);
-                if (strtol_start == endptr || (errno != 0 && result == 0)) {
+                if (!parse_number(tok.str, &result)) {
                     printf("[%u] Invalid data %s\n", line_no + 1, tok.str);
                     return 1;
                 }
@@ -544,17 +573,9 @@ usage:
             bzero(tok.str, tok.size);
             get_token(&ptr, &tok);
 
-            int base = 10;
-            char *strtol_start = tok.str;
-            if (tok.str[0] == '0' && tok.str[1] == 'x') {
-                base = 16;
-                strtol_start += 2;
-            }
+            u32 result = 0;
 
-            char *endptr = NULL;
-            errno = 0;
-            u32 result = strtol(strtol_start, &endptr, base);
-            if (strtol_start == endptr || (errno != 0 && result == 0)) {
+            if (!parse_number(tok.str, &result)) {
                 debug("%s: Symbol(%s)\n", tok.str, tok.str);
 
                 inst.symbol_str = (char *)calloc(tok.size, sizeof(char));
@@ -584,23 +605,72 @@ usage:
             }
             ptr++;
 
-            bzero(tok.str, tok.size);
-            get_token(&ptr, &tok);
+            char *end_ptr = eat(ptr, has_close_bracket, 1);
 
-            if (tok.str[tok.size - 1] == ']') {
-                tok.size -= 1;
-                tok.str[tok.size] = '\0';
+            bzero(tok.str, tok.size);
+            memcpy(tok.str, ptr, end_ptr - ptr);
+            tok.size = end_ptr - ptr;
+            tok.str[tok.size] = '\0';
+            ptr = end_ptr + 1;
+
+
+            // TODO: This is kinda gross; Refactor?
+            Token reg_tok = {0};
+            Token off_tok = {0};
+            for (char *c = tok.str; c < tok.str + tok.size; c++) {
+                if (*c == '+') {
+                    u32 plus_idx = c - tok.str;
+
+                    char *tmp;
+
+                    reg_tok.size = plus_idx;
+                    reg_tok.str = (char *)calloc(1, reg_tok.size + 1);
+                    memcpy(reg_tok.str, tok.str, reg_tok.size);
+                    tmp = strip_str(reg_tok.str);
+                    free(reg_tok.str);
+                    reg_tok.str = tmp;
+
+                    off_tok.size = tok.size - plus_idx - 1;
+                    off_tok.str = (char *)calloc(1, off_tok.size + 1);
+                    memcpy(off_tok.str, tok.str + plus_idx + 1, off_tok.size);
+                    tmp = strip_str(off_tok.str);
+                    free(off_tok.str);
+                    off_tok.str = tmp;
+
+                    break;
+                }
             }
 
-            Bucket reg_bucket = map_get(reg_map, tok.str);
+            char *selected_tok_str;
+            Bucket reg_bucket;
+            if (reg_tok.str != NULL) {
+                reg_bucket = map_get(reg_map, reg_tok.str);
+                selected_tok_str = reg_tok.str;
+            } else {
+                reg_bucket = map_get(reg_map, tok.str);
+                selected_tok_str = tok.str;
+            }
+
             if (reg_bucket.key != NULL) {
                 Register reg = (Register)reg_bucket.data;
-                debug("%s: Register(%u)\n", tok.str, reg);
+                debug("%s: Register(%u)\n", selected_tok_str, reg);
 
                 inst.reg[1] = reg;
             } else {
                 printf("[%u] Not enough registers for op!\n", line_no + 1);
                 return 1;
+            }
+
+            if (off_tok.str != NULL) {
+                u32 result;
+                if (!parse_number(off_tok.str, &result)) {
+                    printf("[%u] Invalid offset %s\n", line_no + 1, off_tok.str);
+                    return 1;
+                }
+
+                debug("%s: Offset(%u)\n", off_tok.str, result);
+
+                inst.imm = result;
             }
         }
 
@@ -735,6 +805,7 @@ usage:
         insert_idx += inst.width;
     }
 
+    FILE *binary_file = fopen(out_file, "wb");
     if (use_elf) {
         debug("Writing elf file!\n");
         write_elf_file(binary_file, binary, insert_idx);

@@ -1,5 +1,9 @@
-lui a1 skip
-
-skip: lui a1 1
-
-lui a1 skip
+lb a0 [  a1 + 0xA  ]
+lb a0 [a1]
+lb a0 [a1+0x50]
+lb a0 [a1+ 10]
+lb a0 [a1 + -32]
+lb a0 [a1 +77]
+lb a0 [ a1 +8]
+lb a0 [ a1 +0xA ]
+lb a0 [a1+0xA ]
