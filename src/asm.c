@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 
+#define DEBUG 1
+
 #include "common.h"
 #include "map.h"
 #include "file.h"
