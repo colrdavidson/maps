@@ -52,11 +52,11 @@ typedef struct {
 #define EF_O32            0x00001000
 #define EF_MIPS_ARCH_1    0x10000000
 
-void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
-	u32 file_size = sizeof(Elf32_hdr) + sizeof(Program_hdr) + program_size;
+void write_elf_file(char *filename, u8 *program, u32 program_size) {
+	FILE *out_file = fopen(filename, "wb");
 
 	u32 mem_location = 0x400000;
-
+	u32 file_size = sizeof(Elf32_hdr) + sizeof(Program_hdr) + program_size;
 	u32 program_entrypoint = sizeof(Elf32_hdr) + sizeof(Program_hdr) + mem_location;
 
 	u8 *out_bin = calloc(1, file_size);
@@ -103,6 +103,8 @@ void write_elf_file(FILE *out_file, u8 *program, u32 program_size) {
 	memcpy(out_bin + sizeof(elf_hdr) + sizeof(prog_hdr), program, program_size);
 
 	fwrite(out_bin, 1, file_size, out_file);
+
+	fclose(out_file);
 }
 
 #endif

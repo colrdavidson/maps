@@ -793,7 +793,6 @@ usage:
 			u8 pad_size = 4 - rem;
 			insert_idx += pad_size;
 
-			u8 pad_byte = 0;
 			memset(binary + insert_idx, 0, pad_size);
 		}
 
@@ -805,12 +804,15 @@ usage:
 		insert_idx += inst.width;
 	}
 
-	FILE *binary_file = fopen(out_file, "wb");
 	if (use_elf) {
 		debug("Writing elf file!\n");
-		write_elf_file(binary_file, binary, insert_idx);
+
+		write_elf_file(out_file, binary, insert_idx);
 	} else {
 		debug("Writing bin file!\n");
+
+		FILE *binary_file = fopen(out_file, "wb");
 		fwrite(binary, 1, insert_idx, binary_file);
+		fclose(binary_file);
 	}
 }
